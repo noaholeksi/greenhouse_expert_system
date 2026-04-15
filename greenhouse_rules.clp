@@ -1,44 +1,91 @@
-; rule 1
-(defrule warn-heat-stress
-(planting (crop-name ?crop) (section-id ?section) (harvested no))
-  	(crop (name ?crop) (max-temp ?max))
-    (greenhouse (temperature ?temp))
-    (test (> ?temp ?max))
-	=> 
-    (printout t "ENVIRONMENT WARNING: " ?crop " in section " ?section " is experiencing too hot" crlf)
-    (printout t "	Current temperature: " ?temp "C -- Max safe: " ?max "C" crlf))
 
-;rule 2
-(defrule warn-cold-stress
-    (planting (crop-name ?crop) (section-id ?section) (harvested no))
-    (crop (name ?crop) (min-temp ?min))
-    (greenhouse (temperature ?temp))
-    (test (< ?temp ?min))
-	=>
-    (printout t "ENVIRONMENT WARNING: " ?crop " in section " ?section " is too cold" crlf)
-    (printout t "	Current temp: " ?temp "C - Min safe: " ?min "C" crlf))
+(defmodule CF-DISEASE-RULES
+    (import DISEASE deftemplate
+      symptom 
+      diagnosis)
 
-;rule 3
-(defrule warn-humidity-too-high
-    (planting (crop-name ?crop) (section-id ?section) (harvested no))
- 	(crop (name ?crop) (max-humidity ?maxH))
-    (greenhouse (humidity ?hum))
-    (test (> ?hum ?maxH))
-	=>
-    (printout t "ENVIRONMENT WARNING: humidity " ?hum "% exceeds maximum for " 
-        ?crop" in section " ?section " (max: " ?maxH "%)" crlf))
+    (import CROP-INFO-BASIC deftemplate
+      planting)
 
-;rule4
-(defrule warn-humidity-too-low
-    (planting (crop-name ?crop) (section-id ?section) (harvested no))
-    (crop (name ?crop) (min-humidity ?minH))
-    (greenhouse (humidity ?hum))
-    (test (< ?hum ?minH))
-	=>
-    (printout t "ENVIRONMENT WARNING: humidity " ?hum "% is below minimum for " 
-		?crop " in section " ?section " (min: " ?minH "%)" crlf))
+    (export defrule
+      diagnose-powdery-mildew
+      diagnose-bacterial-leaf-spot
+      diagnose-early-blight
+      diagnose-bacterial-wilt
+      diagnose-bacterial-blight
+      diagnose-mosaic-virus
+      diagnose-white-rot
+      diagnose-fungal-leaf-spot
+      diagnose-fruit-rot
+      diagnose-general-stress
+)
+)
 
-;rule 7 
+(defmodule FUZZY-STRESS-RULES
+      (import CROP-INFO-BASIC deftemplate
+        crop planting)
+
+  (import environment deftemplate
+    greenhouse)
+
+  (import fuzzy-environment deftemplate
+    temp-excess temp-deficit
+    humidity-excess humidity-deficit
+    stress-level care-urgency)
+
+
+      (export defrule
+        compute-temp-excess
+        compute-temp-deficit
+        compute-humidity-excess
+        compute-humidity-deficit
+        fuzzy-severe-heat
+        fuzzy-mild-heat
+        fuzzy-low-heat
+        fuzzy-severe-cold
+        fuzzy-mild-cold
+        fuzzy-low-cold
+        fuzzy-saturated-humidity
+        fuzzy-elevated-humidity
+        fuzzy-low-humidity-excess
+        fuzzy-severe-dry-conditions
+        fuzzy-dry-conditions
+        fuzzy-low-humidity-deficit
+        report-care-urgency)
+)
+
+(defmodule BASE-Rules
+     (import CROP-INFO-BASIC deftemplate
+    crop section planting companion-method)
+
+  (import environment deftemplate
+    greenhouse current-day id-counter)
+    (export defrule
+      warn-soil-depth-insufficient
+      suggest-companion-planting
+      recommend-watering
+      update-section-water-frequency-down
+      reset-water-frequency-for-recalc
+      recommend-fertilize-low-nitrogen
+      update-stage-to-flowering
+      remind-hand-pollination
+      update-stage-to-ready
+      urgent-harvest-warning
+      process-harvest-update-soil
+      no-compatible-crops-warning
+      list-all-crop-ranges-when-incompatible
+      recommend-compatible-crop-for-empty-section
+      create-new-planting
+      update-section-soil-depth
+      update-section-soil-nitrogen
+      debug-print-all-plantings
+      process-harvest-request
+
+    )
+)
+
+
+
 (defrule warn-soil-depth-insufficient
 	(planting (crop-name ?crop) (section-id ?section) (harvested no))
 	(section (id ?section) (soil-depth ?sDepth))
@@ -48,8 +95,6 @@
 	(printout t "SOIL WARNING: " ?crop " in section " ?section " needs " 
         ?cDepth "cm depth but section only has " ?sDepth "cm" crlf)
 	(printout t "	Recommended action: transplant to a deeper section" crlf))
-
-
 
 ;rule 8
 
@@ -173,7 +218,7 @@
 		(if (and (eq ?impact depletes) (eq ?currentN medium)) then low
 		(if (and (eq ?impact enriches) (eq ?currentN low))    then medium
 		(if (and (eq ?impact enriches) (eq ?currentN medium)) then high
-		else ?currentN)))))
+		else ?currentN)))))wro
 
 	(modify ?sect (soil-nitrogen ?newN) (crops (delete-member$ (create$ $?before ?crop $?after) ?crop)))
 	(retract ?planting)
@@ -273,7 +318,293 @@
 	(printout t "[DEBUG] planting " ?pid ": " ?crop " |  section: " ?section " | stage: " ?stage crlf))
 
 
+(defrule process-harvest-request
+    ?request <- (harvest ?pid)
+    ?planting <- (planting (id ?pid) (harvested no))
+    =>
+    (retract ?request)
+    (modify ?planting (harvested yes)))
 
 
+; cf rule 1
+(defrule diagnose-powdery-mildew
+  (symptom (planting-id ?id) (name white-powder) (cf ?c1))
+  (test (> ?c1 0.2))
+  (planting (id ?id) (crop-name zucchini|peas|lettuce))
+=>
+  (bind ?new-cf (* ?c1 0.9))
+  (assert (diagnosis (planting-id ?id) (name powdery-mildew) (cf ?new-cf))))
+
+;cf rule 2
+(defrule diagnose-bacterial-leaf-spot
+  (symptom (planting-id ?id) (name leaf-spots) (cf ?c1))
+  (symptom (planting-id ?id) (name fruit-spots) (cf ?c2))
+  (test (and (> ?c1 0.2) (> ?c2 0.2)))
+  (planting (id ?id) (crop-name tomatoes|peppers))
+=>
+  (bind ?min-cf (min ?c1 ?c2))
+  (bind ?new-cf (* ?min-cf 0.9))
+  (assert (diagnosis (planting-id ?id) (name bacterial-leaf-spot) (cf ?new-cf))))
 
 
+;cf rule 3
+
+(defrule diagnose-early-blight
+  (symptom (planting-id ?id) (name leaf-spots) (cf ?c1))
+  (symptom (planting-id ?id) (name leaf-yellowing) (cf ?c2))
+  (test (and (> ?c1 0.2) (> ?c2 0.2)))
+  (planting (id ?id) (crop-name tomatoes))
+=>
+  (bind ?min-cf (min ?c1 ?c2))
+  (bind ?new-cf (* ?min-cf 0.85))
+  (assert (diagnosis (planting-id ?id) (name early-blight) (cf ?new-cf))))
+
+;cf rule 4
+(defrule diagnose-bacterial-wilt
+  (symptom (planting-id ?id) (name wilting) (cf ?c1))
+  (symptom (planting-id ?id) (name rapid-collapse) (cf ?c2))
+  (test (and (> ?c1 0.2) (> ?c2 0.2)))
+  (planting (id ?id) (crop-name tomatoes|peppers))
+=>
+  (bind ?min-cf (min ?c1 ?c2))
+  (bind ?new-cf (* ?min-cf 0.9))
+  (assert (diagnosis (planting-id ?id) (name bacterial-wilt) (cf ?new-cf))))
+;cf rule 5
+(defrule diagnose-bacterial-blight
+  (symptom (planting-id ?id) (name damaged-leaves) (cf ?c1))
+  (symptom (planting-id ?id) (name damaged-pods) (cf ?c2))
+  (test (and (> ?c1 0.2) (> ?c2 0.2)))
+  (planting (id ?id) (crop-name beans|peas))
+=>
+  (bind ?min-cf (min ?c1 ?c2))
+  (bind ?new-cf (* ?min-cf 0.85))
+  (assert (diagnosis (planting-id ?id) (name bacterial-blight) (cf ?new-cf))))
+;cf rule 6
+
+(defrule diagnose-mosaic-virus
+  (symptom (planting-id ?id) (name patchy-leaves) (cf ?c1))
+  (symptom (planting-id ?id) (name misshapen-leaves) (cf ?c2))
+  (test (and (> ?c1 0.2) (> ?c2 0.2)))
+  (planting (id ?id) (crop-name zucchini|beans|lettuce|tomatoes))
+=>
+  (bind ?min-cf (min ?c1 ?c2))
+  (bind ?new-cf (* ?min-cf 0.8))
+  (assert (diagnosis (planting-id ?id) (name mosaic-virus) (cf ?new-cf))))
+;cf rule 7
+
+(defrule diagnose-white-rot
+  (symptom (planting-id ?id) (name rotting-roots) (cf ?c1))
+  (symptom (planting-id ?id) (name weak-plant) (cf ?c2))
+  (test (and (> ?c1 0.2) (> ?c2 0.2)))
+  (planting (id ?id) (crop-name onions))
+=>
+  (bind ?min-cf (min ?c1 ?c2))
+  (bind ?new-cf (* ?min-cf 0.87))
+  (assert (diagnosis (planting-id ?id) (name white-rot) (cf ?new-cf))))
+
+;cf rule 8
+
+(defrule diagnose-fungal-leaf-spot
+  (symptom (planting-id ?id) (name leaf-spots) (cf ?c1))
+  (symptom (planting-id ?id) (name spreading-lesions) (cf ?c2))
+  (test (and (> ?c1 0.2) (> ?c2 0.2)))
+  (planting (id ?id) (crop-name spinach|lettuce))
+=>
+  (bind ?min-cf (min ?c1 ?c2))
+  (bind ?new-cf (* ?min-cf 0.8))
+  (assert (diagnosis (planting-id ?id) (name fungal-leaf-spot) (cf ?new-cf))))
+;cf rule 9
+
+(defrule diagnose-fruit-rot
+  (symptom (planting-id ?id) (name soft-spots) (cf ?c1))
+  (test (> ?c1 0.2))
+  (planting (id ?id) (crop-name tomatoes|peppers))
+=>
+  (bind ?new-cf (* ?c1 0.8))
+  (assert (diagnosis (planting-id ?id) (name fruit-rot-disease) (cf ?new-cf))))
+;cf rule 10
+
+(defrule diagnose-general-stress
+  (symptom (planting-id ?id) (name wilting) (cf ?c1))
+  (symptom (planting-id ?id) (name leaf-yellowing) (cf ?c2))
+  (test (and (> ?c1 0.2) (> ?c2 0.2)))
+  (planting (id ?id))
+=>
+  (bind ?min-cf (min ?c1 ?c2))
+  (bind ?new-cf (* ?min-cf 0.6))
+  (assert (diagnosis (planting-id ?id) (name general-stress) (cf ?new-cf))))
+
+;; fuzzy
+
+(defrule compute-temp-excess
+  (planting (id ?pid) (crop-name ?crop) (section-id ?section) (harvested no))
+  (crop (name ?crop) (max-temp ?max))
+  (greenhouse (temperature ?temp))
+  (test (> ?temp ?max))
+  =>
+  (bind ?excess (- ?temp ?max))
+  (assert (temp-excess (?excess 1.0)))
+  (bind ?slevel
+    (if (< ?excess 4) then low
+    else (if (< ?excess 7) then medium
+    else high)))
+  (assert (stress-level (type heat) (level ?slevel)))
+  (bind ?label
+    (if (< ?excess 4) then "slightly too warm"
+    else (if (< ?excess 7) then "too warm"
+    else "much too warm")))
+  (printout t "[HEAT STRESS] " ?crop " (section " ?section "): " ?label crlf))
+
+(defrule compute-temp-deficit
+  (planting (id ?pid) (crop-name ?crop) (section-id ?section) (harvested no))
+  (crop (name ?crop) (min-temp ?min))
+  (greenhouse (temperature ?temp))
+  (test (< ?temp ?min))
+  =>
+  (bind ?deficit (- ?min ?temp))
+  (assert (temp-deficit (?deficit 1.0)))
+  (bind ?slevel
+    (if (< ?deficit 4) then low
+    else (if (< ?deficit 7) then medium
+    else high)))
+  (assert (stress-level (type cold) (level ?slevel)))
+  (bind ?label
+    (if (< ?deficit 4) then "slightly too cold"
+    else (if (< ?deficit 7) then "too cold"
+    else "much too cold")))
+  (printout t "[COLD STRESS] " ?crop " (section " ?section "): " ?label crlf))
+
+(defrule compute-humidity-excess
+  (planting (id ?pid) (crop-name ?crop) (section-id ?section) (harvested no))
+  (crop (name ?crop) (max-humidity ?maxH))
+  (greenhouse (humidity ?hum))
+  (test (> ?hum ?maxH))
+  =>
+  (bind ?excess (- ?hum ?maxH))
+  (assert (humidity-excess (?excess 1.0)))
+  (bind ?slevel
+    (if (< ?excess 8) then low
+    else (if (< ?excess 14) then medium
+    else high)))
+  (assert (stress-level (type humid-high) (level ?slevel)))
+  (bind ?label
+    (if (< ?excess 8) then "slightly too humid"
+    else (if (< ?excess 14) then "too humid"
+    else "much too humid")))
+  (printout t "[HUMIDITY HIGH] " ?crop " (section " ?section "): " ?label crlf))
+
+(defrule compute-humidity-deficit
+  (planting (id ?pid) (crop-name ?crop) (section-id ?section) (harvested no))
+  (crop (name ?crop) (min-humidity ?minH))
+  (greenhouse (humidity ?hum))
+  (test (< ?hum ?minH))
+  =>
+  (bind ?deficit (- ?minH ?hum))
+  (assert (humidity-deficit (?deficit 1.0)))
+  (bind ?slevel
+    (if (< ?deficit 11) then low
+    else (if (< ?deficit 17) then medium
+    else high)))
+  (assert (stress-level (type humid-low) (level ?slevel)))
+  (bind ?label
+    (if (< ?deficit 11) then "slightly too dry"
+    else (if (< ?deficit 17) then "too dry"
+    else "much too dry")))
+  (printout t "[HUMIDITY LOW] " ?crop " (section " ?section "): " ?label crlf))
+(defrule fuzzy-severe-heat
+  (stress-level (type heat) (level high))
+  =>
+  (assert (care-urgency high)))
+
+(defrule fuzzy-mild-heat
+  (stress-level (type heat) (level medium))
+  (not (stress-level (type heat) (level high)))
+  =>
+  (assert (care-urgency medium)))
+
+(defrule fuzzy-low-heat
+  (stress-level (type heat) (level low))
+  (not (stress-level (type heat) (level medium)))
+  (not (stress-level (type heat) (level high)))
+  =>
+  (assert (care-urgency low)))
+
+
+(defrule fuzzy-severe-cold
+  (stress-level (type cold) (level high))
+  =>
+  (assert (care-urgency high)))
+
+(defrule fuzzy-mild-cold
+  (stress-level (type cold) (level medium))
+  (not (stress-level (type cold) (level high)))
+  =>
+  (assert (care-urgency medium)))
+
+(defrule fuzzy-low-cold
+  (stress-level (type cold) (level low))
+  (not (stress-level (type cold) (level medium)))
+  (not (stress-level (type cold) (level high)))
+  =>
+  (assert (care-urgency low)))
+
+(defrule fuzzy-saturated-humidity
+  (stress-level (type humid-high) (level high))
+  =>
+  (assert (care-urgency high)))
+
+(defrule fuzzy-elevated-humidity
+  (stress-level (type humid-high) (level medium))
+  (not (stress-level (type humid-high) (level high)))
+  =>
+  (assert (care-urgency medium)))
+
+(defrule fuzzy-low-humidity-excess
+  (stress-level (type humid-high) (level low))
+  (not (stress-level (type humid-high) (level medium)))
+  (not (stress-level (type humid-high) (level high)))
+  =>
+  (assert (care-urgency low)))
+
+(defrule fuzzy-severe-dry-conditions
+  (stress-level (type humid-low) (level high))
+  =>
+  (assert (care-urgency high)))
+
+(defrule fuzzy-dry-conditions
+  (stress-level (type humid-low) (level medium))
+  (not (stress-level (type humid-low) (level high)))
+  =>
+  (assert (care-urgency medium)))
+
+(defrule fuzzy-low-humidity-deficit
+  (stress-level (type humid-low) (level low))
+  (not (stress-level (type humid-low) (level medium)))
+  (not (stress-level (type humid-low) (level high)))
+  =>
+  (assert (care-urgency low)))
+
+(defrule report-care-urgency
+  (declare (salience -10))
+  ?u <- (care-urgency ?)
+  =>
+  (bind ?score (moment-defuzzify ?u))
+
+  (printout t crlf)
+  (printout t "*********" crlf)
+  (printout t "Fuzzy stress  greenhouse summary" crlf)
+  (printout t "*********" crlf)
+
+  (printout t "  Care Urgency Score: " ?score " / 10" crlf)
+
+  (if (>= ?score 7.0) then
+    (printout t "  >> Urgent: Alter environment, check for damage in plants and equipment" crlf)
+    (printout t "     One or more plants are under severe stress." crlf)
+  else (if (>= ?score 4.0) then
+    (printout t "  >> Caution: ALter environment" crlf)
+  else
+    (printout t "  >> Ok: Continue monitoring" crlf)
+    (printout t "     Planttress levels are low." crlf)))
+
+  (printout t "*******" crlf)
+  (printout t crlf))
