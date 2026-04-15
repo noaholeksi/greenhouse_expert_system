@@ -4,35 +4,7 @@
         section
         planting
         companion-method)
-
-    (export deffacts 
-        crops 
-        companion-methods)
 )
-
-(defmodule DISEASE
-    (export deftemplate 
-        symptom
-        diagnosis)
-)
-
-(defmodule environment
-    (export deftemplate
-        greenhouse
-        current-day
-        id-counter)
-)
-
-(defmodule fuzzy-environment 
-    (export deftemplate 
-        temp-excess
-        temp-deficit
-        humidity-excess
-        humidity-deficit
-        care-urgency
-        stress-level))
-
-
 
 (deftemplate crop
    (slot name)
@@ -70,10 +42,6 @@
    (slot pollinated)
 )
 
-(deftemplate greenhouse
-   (slot temperature)
-   (slot humidity)
-)
 
 (deftemplate companion-method
    (slot crop-a)
@@ -81,15 +49,6 @@
    (slot method)
 )
 
-
-(deftemplate id-counter
-   (slot value)
-)
-
-
-(deftemplate current-day 
-   (slot value)
-)
 
 
 (deffacts crops
@@ -332,6 +291,43 @@
 )
 
 
+(defmodule ENVIRONMENT
+    (export deftemplate
+        greenhouse
+        current-day
+        id-counter)
+)
+
+
+
+(deftemplate greenhouse
+   (slot temperature)
+   (slot humidity)
+)
+
+
+(deftemplate id-counter
+   (slot value)
+)
+
+
+(deftemplate current-day 
+   (slot value)
+)
+
+
+
+
+(defmodule FUZZY-ENVIRONMENT
+    (export deftemplate 
+        temp-excess
+        temp-deficit
+        humidity-excess
+        humidity-deficit
+        care-urgency
+        stress-level))
+
+
 ; fuzzy stuff
 (deftemplate temp-excess
   0 20 degrees
@@ -368,6 +364,13 @@
   (slot type  (default none))   ; heat, cold ,humid-high, humid-low
   (slot level (default low)))   ; low, medium, high
 ;;
+
+
+(defmodule DISEASE
+    (export deftemplate 
+        symptom
+        diagnosis)
+)
 
 (deftemplate symptom
    (slot planting-id)

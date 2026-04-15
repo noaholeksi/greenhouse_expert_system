@@ -1,11 +1,10 @@
 (defmodule SCENARIO-1
-	(export deffacts
-		greenhouse-state
-		day-state
-		id-state
-		section-states
-		active-plantings
-		test-symptoms)
+    (import ENVIRONMENT deftemplate
+        greenhouse current-day id-counter)
+    (import CROP-INFO-BASIC deftemplate
+        section planting)
+    (import DISEASE deftemplate
+        symptom diagnosis)
 )
 
 (deffacts greenhouse-state

@@ -1,87 +1,9 @@
 
-(defmodule CF-DISEASE-RULES
-    (import DISEASE deftemplate
-      symptom 
-      diagnosis)
-
+(defmodule BASE-RULES
     (import CROP-INFO-BASIC deftemplate
-      planting)
-
-    (export defrule
-      diagnose-powdery-mildew
-      diagnose-bacterial-leaf-spot
-      diagnose-early-blight
-      diagnose-bacterial-wilt
-      diagnose-bacterial-blight
-      diagnose-mosaic-virus
-      diagnose-white-rot
-      diagnose-fungal-leaf-spot
-      diagnose-fruit-rot
-      diagnose-general-stress
-)
-)
-
-(defmodule FUZZY-STRESS-RULES
-      (import CROP-INFO-BASIC deftemplate
-        crop planting)
-
-  (import environment deftemplate
-    greenhouse)
-
-  (import fuzzy-environment deftemplate
-    temp-excess temp-deficit
-    humidity-excess humidity-deficit
-    stress-level care-urgency)
-
-
-      (export defrule
-        compute-temp-excess
-        compute-temp-deficit
-        compute-humidity-excess
-        compute-humidity-deficit
-        fuzzy-severe-heat
-        fuzzy-mild-heat
-        fuzzy-low-heat
-        fuzzy-severe-cold
-        fuzzy-mild-cold
-        fuzzy-low-cold
-        fuzzy-saturated-humidity
-        fuzzy-elevated-humidity
-        fuzzy-low-humidity-excess
-        fuzzy-severe-dry-conditions
-        fuzzy-dry-conditions
-        fuzzy-low-humidity-deficit
-        report-care-urgency)
-)
-
-(defmodule BASE-Rules
-     (import CROP-INFO-BASIC deftemplate
-    crop section planting companion-method)
-
-  (import environment deftemplate
-    greenhouse current-day id-counter)
-    (export defrule
-      warn-soil-depth-insufficient
-      suggest-companion-planting
-      recommend-watering
-      update-section-water-frequency-down
-      reset-water-frequency-for-recalc
-      recommend-fertilize-low-nitrogen
-      update-stage-to-flowering
-      remind-hand-pollination
-      update-stage-to-ready
-      urgent-harvest-warning
-      process-harvest-update-soil
-      no-compatible-crops-warning
-      list-all-crop-ranges-when-incompatible
-      recommend-compatible-crop-for-empty-section
-      create-new-planting
-      update-section-soil-depth
-      update-section-soil-nitrogen
-      debug-print-all-plantings
-      process-harvest-request
-
-    )
+        crop section planting companion-method)
+    (import ENVIRONMENT deftemplate
+        greenhouse current-day id-counter)
 )
 
 
@@ -218,7 +140,7 @@
 		(if (and (eq ?impact depletes) (eq ?currentN medium)) then low
 		(if (and (eq ?impact enriches) (eq ?currentN low))    then medium
 		(if (and (eq ?impact enriches) (eq ?currentN medium)) then high
-		else ?currentN)))))wro
+		else ?currentN)))))
 
 	(modify ?sect (soil-nitrogen ?newN) (crops (delete-member$ (create$ $?before ?crop $?after) ?crop)))
 	(retract ?planting)
@@ -325,7 +247,13 @@
     (retract ?request)
     (modify ?planting (harvested yes)))
 
-
+(defmodule CF-DISEASE-RULES
+    (import DISEASE deftemplate
+        symptom
+        diagnosis)
+    (import CROP-INFO-BASIC deftemplate
+        planting)
+)
 ; cf rule 1
 (defrule diagnose-powdery-mildew
   (symptom (planting-id ?id) (name white-powder) (cf ?c1))
@@ -435,6 +363,16 @@
   (assert (diagnosis (planting-id ?id) (name general-stress) (cf ?new-cf))))
 
 ;; fuzzy
+(defmodule FUZZY-STRESS-RULES
+    (import CROP-INFO-BASIC deftemplate
+        crop planting section)
+    (import ENVIRONMENT deftemplate
+        greenhouse)
+    (import FUZZY-ENVIRONMENT deftemplate
+        temp-excess temp-deficit
+        humidity-excess humidity-deficit
+        stress-level care-urgency)
+)
 
 (defrule compute-temp-excess
   (planting (id ?pid) (crop-name ?crop) (section-id ?section) (harvested no))
